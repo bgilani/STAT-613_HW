@@ -1,0 +1,313 @@
+---
+title: "COVID19_HW"
+author: "Bilal Gilani"
+date: "4/8/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+theme_set(theme_bw())
+
+dat <- read_csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
+
+deaths_by_state <- dat %>%
+  count(state,date, wt = deaths) %>%
+  filter(date == max(date)) %>%
+  rename(total_deaths = n) %>%
+  arrange(desc(total_deaths))
+
+```
+
+## 1.
+```{r}
+
+deaths_by_state2 <- dat %>%
+  count(state,date, wt = deaths) %>%
+  filter(date == date) %>%
+  rename(total_deaths = n) %>%
+  arrange(desc(total_deaths))
+
+
+cases_by_state <- dat %>%
+  count(state,date, wt = cases) %>%
+  filter(date == date) %>%
+  rename(total_cases = n) %>%
+  arrange(desc(total_cases))
+
+total_deaths <- select(deaths_by_state2, total_deaths)
+cases_by_state <- cbind(cases_by_state, total_deaths)
+
+cases_by_state <- cases_by_state[c(1,2,4,3)]
+
+head(cases_by_state, n = 10)
+
+```
+
+
+## 2.
+```{r}
+dat_small <-
+  dat %>%
+  filter(state %in% c("District of Columbia", "Maryland", "Virginia")) %>%
+  mutate(county = factor(county))
+
+counties = c("Anne Arundel", "Charles city", "Frederick", "Howard", "Montgomery", "Prince Georges", "Alexandria city", "Arlington", "Fairfax", "Loudoun", "Prince William", "District of Columbia")
+
+dat_small %>%
+  filter(county %in% counties) %>% 
+  ggplot(aes(x = date, y = cases, color = county)) +
+  geom_line() +
+  geom_point() +
+  theme(legend.position = "bottom") +
+  facet_grid(~ state)
+
+
+```
+
+
+## 3.
+```{r}
+counties = c("Anne Arundel", "Charles city", "Frederick", "Howard", "Montgomery", "Prince Georges", "Alexandria city", "Arlington", "Fairfax", "Loudoun", "Prince William", "District of Columbia")
+
+dat_small %>%
+  filter(county %in% counties) %>%
+  group_by(date) %>%
+  summarise(total_cases = sum(cases)) %>%
+  ggplot(aes(x = date, y = total_cases)) +
+  geom_point() +
+  geom_line()
+
+dat_small %>%
+  filter(county %in% counties) %>%
+  group_by(date) %>%
+  summarise(total_deaths = sum(deaths)) %>%
+  ggplot(aes(x = date, y = total_deaths)) +
+  geom_point() +
+  geom_line()
+
+dat_small %>%
+  filter(county %in% counties) %>%
+  group_by(date) %>%
+  summarise(total_cases = sum(cases)) %>%
+  ggplot(aes(x = date, y = total_cases)) +
+  geom_point() +
+  geom_line()
+
+dat_small %>%
+  filter(county %in% counties) %>%
+  group_by(date) %>%
+  summarise(total_cases = sum(cases),
+            total_deaths = sum(deaths)) -> dat_DMV
+  
+dat_DMV %>%
+  ggplot(aes(x = date, y = total_cases, color)) +
+  geom_line(aes(y = total_deaths, color = "Total Deaths")) +
+  geom_line(aes(y = total_cases, color = "Total Cases")) +
+  geom_point(aes(y = total_deaths, color = "Total Deaths")) +
+  geom_point(aes(y = total_cases, color = "Total Cases")) +
+  theme(legend.position = "right") +
+  scale_y_log10()
+  
+```
+
+## 4.
+```{r}
+dat2 <- read_csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/archived_data/archived_time_series/time_series_19-covid-Confirmed_archived_0325.csv")
+
+Country_State <- paste(dat2$'Country/Region', dat2$'Province/State', sep = "_")
+Country_State <- gsub("_NA", "   ", Country_State)
+dat2 <- cbind(dat2, Country_State)
+
+dat2 <- dat2[c(67, 1:66)]
+
+Country_Cases <- gather(dat2, Date, Confirmed_Cases, 6:67)
+Country_Cases <- Country_Cases %>%
+  rename("Country/State" = Country_State)
+
+Country_Cases$"Country/State" <- as.character(Country_Cases$"Country/State")
+Country_Cases$Date <- as.Date(Country_Cases$Date, format = "%m/%d/%y")
+
+class(Country_Cases$"Country/State")
+head(filter(Country_Cases, Lat == 15.000, Long == 101.0000), n = 7)
+
+```
+
+## 5.
+```{r}
+library(countrycode)
+continent <- countrycode(sourcevar = Country_Cases$"Country/Region", origin = "country.name", destination = "continent")
+Country_Cases <- cbind(Country_Cases, continent)
+
+no_continent <- Country_Cases[is.na(Country_Cases$continent),]
+unique(no_continent)
+
+## Looking through the dataframe created the two NAs in the column continent are associated with the
+## Cruise Ship "Diamond Princess" as well as the country of Kosovo. Kosovo is in Europe and this 
+## issue can easily be remedied. In order to find where the Diamond Princess was docked on the dates
+## provided, we can use the Latitude and Longitudes given which places the ship in the city of Yokohama
+## in the Kanegawa Prefecture of Japan. Therefore, the ship is in Asia.
+
+Country_Cases$continent[which(Country_Cases$"Country/State" == "Kosovo   ")] <- "Europe"
+Country_Cases$continent[which(Country_Cases$"Country/State" == "Cruise Ship_Diamond Princess")] <- "Asia"
+
+sum(is.na(Country_Cases$continent))
+
+```
+
+## 6.
+```{r}
+Top_25 <- Country_Cases %>%
+          arrange(desc(Confirmed_Cases)) %>%
+          arrange(desc(Date)) %>%
+          head(n = 25) %>%
+          select("Country/State", "Country/Region", continent, Confirmed_Cases)
+          
+names(Top_25) <- c("Country/State", "Country/Region", "continent", "ttl")
+Top_25$continent <- as.character(Top_25$continent)
+
+Top_25
+
+```
+
+## 7.
+```{r}
+Cases_Small <-
+  Country_Cases %>%
+  filter(`Country/Region` %in% c("China", "Italy", "Spain", "Germany", "Iran", "France",
+                                 "US", "Korea, South", "Switzerland", "United Kingdom",
+                                 "Netherlands", "Belgium", "Austria", "Norway", "Sweden",
+                                 "Portugal", "Brazil", "Denmark", "Malaysia")) %>%
+  mutate(`Country/State` = factor(`Country/State`))
+
+countries = c("China_Hubei", "Italy   ", "Spain   ", "Germany   ", "Iran   ", "France_France", "US_New York",
+                "Korea, South   ", "Switzerland   ", "United Kingdom_United Kingdom", "Netherlands_Netherlands",
+                "Belgium   ", "Austria   ", "Norway   ", "US_Washington", "Sweden   ", "US_New Jersey", "US_California",
+                "Portugal   ", "Brazil   ", "China_Guangdong", "Denmark_Denmark", "Malaysia   ", "China_Henan",
+                "China_Zhejiang")
+
+WorldGraph <- Cases_Small %>%
+  filter(`Country/State` %in% countries) %>% 
+  ggplot(aes(x = Date, y = Confirmed_Cases, color = `Country/State`)) +
+  geom_line() +
+  geom_point() +
+  theme(legend.position = "bottom") +
+  facet_grid(~ continent) +
+  scale_y_log10()
+
+WorldGraph
+```
+
+## 8.
+```{r}
+library(lubridate)
+
+dat %>% 
+  filter(state == "New York") %>% 
+  select(cases, date) %>% 
+  group_by(date) %>% 
+  summarize(total_cases = sum(cases)) %>% 
+  mutate(source = "ny times") ->
+  ny_ny
+
+Country_Cases %>% 
+  filter(`Province/State` == "New York") %>% 
+  select(Confirmed_Cases, Date) %>% 
+  group_by(Date) %>% 
+  summarise(total_cases = sum(Confirmed_Cases)) %>% 
+  mutate(source = "csse") %>% 
+  rename(date = Date)->
+  csse_ny
+
+csse_ny %>% 
+  full_join(ny_ny, Date = date) ->
+  full_ny
+
+full_ny %>% 
+  filter(date < ymd("2020-03-20")) %>% 
+  ggplot(aes(date, total_cases, color = source)) +
+  geom_line(size = 1.5)
+
+```
+
+The differences can be found from the time of March 5 to March 15.
+
+## 9.
+```{r}
+Country_Cases %>% 
+  filter(`Country/Region` == "China") %>% 
+  group_by(`Province/State`) %>% 
+  summarise(total_cases = sum(Confirmed_Cases)) %>% 
+  ungroup() %>% 
+  arrange(desc(total_cases)) %>% 
+  slice(1:25) %>% 
+  pull(`Province/State`) ->
+  province_list
+
+Country_Cases %>% 
+  filter(`Province/State` %in% province_list | `Province/State` == "Diamond Princess") %>% 
+  group_by(Date, `Province/State`) %>% 
+  summarise(total_cases = sum(Confirmed_Cases)) %>% 
+  ggplot(aes(Date, total_cases)) +
+  geom_point() +
+  facet_wrap(~ `Province/State`) +
+  scale_y_sqrt()
+
+
+```
+
+```{r}
+sigmoid = function(x, params) {
+  params[1] / (1 + exp(-params[2] * (x - params[3])))
+}
+    
+x = 1:53
+y = c(0,0,0,0,0,0,0,0,0,0,0,0,0,0.1,0.18,0.18,0.18,0.33,0.33,0.33,0.33,0.41,
+  0.41,0.41,0.41,0.41,0.41,0.5,0.5,0.5,0.5,0.68,0.58,0.58,0.68,0.83,0.83,0.83,
+  0.74,0.74,0.74,0.83,0.83,0.9,0.9,0.9,1,1,1,1,1,1,1)
+df <- tibble(x = x, y = y)    
+# fitting code
+fitmodel <- nls(y ~ a /(1 + exp(-b * (x - c))), data = df,
+                start = list(a = 1, b = 0.5, c = 25))
+    
+
+# get the coefficients using the coef function
+params=coef(fitmodel)
+    
+df$y2 <- sigmoid(x, params)
+df %>% ggplot(aes(x, y2)) + geom_line() + geom_point(y = y)
+
+```
+
+### Exercise 10
+
+```{r, error=TRUE}
+Country_Cases %>% 
+  filter(`Province/State` == "Hubei") %>% 
+  group_by(`Date`) %>% 
+  summarise(total_cases = sum(Confirmed_Cases)) ->
+  hubei
+
+x = seq(length(hubei$Date))
+y = hubei$total_cases
+df <- tibble(x = x, y = y)    
+# fitting code
+fitmodel <- nls(y ~ a /(1 + exp(-b * (x - c))), data = df,
+                start = list(a = 1, b = 0.5, c = 25))
+    
+# visualization code
+# get the coefficients using the coef function
+params=coef(fitmodel)
+    
+df$y2 <- sigmoid(x, params)
+df %>% ggplot(aes(x, y2)) + geom_line() + geom_point(y = y)
+
+```
+
+
+

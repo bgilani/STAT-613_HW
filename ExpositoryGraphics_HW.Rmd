@@ -1,0 +1,177 @@
+---
+title: "ExpositoryGraphics_HW"
+author: "Bilal Gilani"
+date: "4/22/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+
+nfl<-read_csv(file.choose()) # Import data
+nfl<-nfl[1:85] # Select only the first 85 columns
+
+# Clean Data
+nfl2<-nfl[, c("down", "yards_gained","play_type", "ydstogo",  "side_of_field", "defteam")] # Select only these columns
+nfl3<-nfl2[(nfl2$play_type=="pass" & nfl2$yards_gained < 35) | (nfl2$play_type=="run" & nfl2$yards_gained < 15), ] # Remove "explosive" plays
+nfl4<-na.omit(nfl3) # Omit NAs
+
+# Teams relocate or abbreviation changes
+nfl4$defteam <- gsub("STL", "LA", nfl4$defteam) #Rams 
+nfl4$defteam <- gsub("LA" ,"LAR", nfl4$defteam)
+nfl4$defteam <- gsub("JAC", "JAX", nfl4$defteam) #Jaguars
+nfl4$defteam <- gsub("SD", "LAC", nfl4$defteam) #Chargers
+
+# Change side_of_field to "own" or "opposing"
+nfl5<-nfl4 %>%
+mutate(side_of_field = case_when(defteam == side_of_field ~ "opposing",
+                                 TRUE ~ "own"))
+
+nfl5$play_type<-as.factor(nfl5$play_type) # Convert play_type to factor
+nfl5$side_of_field<-as.factor(nfl5$side_of_field) # Convert side_of_field to factor
+nfl5$defteam<-as.factor(nfl5$defteam) # Convert defteam to factor
+
+```
+
+## Exercise 1
+
+```{r}
+nfl5 %>% 
+  ggplot(aes(play_type, yards_gained)) +
+  geom_boxplot() +
+  labs(
+    title = "Relationship Betwee Play Type and Yards Gained",
+    subtitle = "Kickoffs and Punts excluded",
+    x = "Play Type",
+    y = "Yards Gained"
+  ) -> plot1
+
+plot1
+
+
+```
+
+## Exercise 2
+```{r}
+data(mpg)
+
+year2008 <- mpg %>%
+  filter(year == 2008)
+
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point() -> plot2
+
+plot2 +
+  geom_label(aes(label = model), data = year2008)
+
+```
+
+
+
+
+## Exercise 3
+
+```{r}
+text_df <- tibble(text = "Lower Displacement = Better City Mileage", x = Inf, y = Inf)
+plot2 + geom_text(aes(x, y, label = text), data = text_df, vjust = "top", hjust = "right") +
+  geom_segment(aes(x = displ, y= cty, xend = 4, yend = 30), data = year2008)
+  
+
+```
+
+## Exercise 4
+
+```{r}
+plot2 +
+  scale_x_continuous(breaks = seq(0, 25, by = 1.5))
+
+```
+
+## Exercise 5
+
+```{r}
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  scale_color_brewer(palette = "Set1")
+
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  scale_color_brewer(palette = "Set2")
+
+```
+
+## Exercise 6
+```{r}
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  geom_smooth(se = FALSE) +
+  theme_bw()
+
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  geom_smooth(se = FALSE) +
+  theme_light()
+
+```
+
+## Exercise 7
+
+```{r, fig.width=5}
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  geom_smooth(se = FALSE) +
+  theme_bw() -> plot3
+
+plot3
+  
+
+```
+```{r, fig.width=8}
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  geom_smooth(se = FALSE) +
+  theme_bw() -> plot4
+
+plot4
+  
+
+```
+
+```{r, fig.align=5}
+year2008 %>%
+  ggplot(aes(displ, cty)) +
+  geom_point(aes(color = class)) +
+  geom_smooth(se = FALSE) +
+  theme_bw() +
+  labs(caption = "fig.align = 5") -> plot5
+
+plot5
+  
+
+```
+
+```{r}
+plot5 +
+  ggsave("Exercise 7.jpg")
+
+
+```
+
+
+
+
+
+
+

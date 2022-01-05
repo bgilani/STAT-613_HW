@@ -1,0 +1,226 @@
+---
+title: "Gapminder HW"
+author: "Bilal Gilani"
+date: "3/24/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Part 1
+
+## 1.
+```{r}
+if(!file.exists("./data")) {dir.create("./data")}
+
+fileURLs <- c("https://docs.google.com/spreadsheet/pub?key=0AkBd6lyS3EmpdHo5S0J6ekhVOF9QaVhod05QSGV4T3c&output=xlsx", 
+              "https://docs.google.com/spreadsheet/pub?key=phAwcNAVuyj2tPLxKvvnNPA&output=xlsx", 
+              "https://docs.google.com/spreadsheet/pub?key=tSUr_yZVbM6a3AGJEq_Z2Pw&output=xlsx",
+              "https://docs.google.com/spreadsheet/pub?key=0ArfEDsV3bBwCdHBzUVVSMDlTX1ZCUnNJQ3ZFdkFXVFE&output=xlsx",
+              "https://docs.google.com/spreadsheet/pub?key=phAwcNAVuyj0XOoBL_n5tAQ&output=xlsx" ) 
+
+var_names <- c("GDP","life_expectancy", "alt_GDP", "blood press", "population")
+```
+
+
+
+```{r}
+library(readxl)
+library(tidyr)
+library(tidyverse)
+get_clean <- function(url_in, var_name) {
+  download.file(url_in, destfile = "./data/tmp.xslx", mode = "wb")
+  output <- read_excel("./data/tmp.xslx")
+  names(output)[[1]] <- "country"
+  output <- output %>%
+    pivot_longer(-country, names_to = "year", values_to = var_name) %>%
+    mutate(year = as.numeric(year)) %>%
+    drop_na()
+}
+out1 <- get_clean(fileURLs[1], var_names[1])
+head(out1)
+
+```
+
+```{r}
+all_data <- map2(fileURLs, var_names, get_clean)
+
+```
+
+## 2.
+```{r}
+joined_data <- all_data %>%
+  reduce(full_join, by = c("country", "year"))
+```
+
+## 3.
+```{r}
+library(countrycode)
+continent <- countrycode(sourcevar = joined_data$country, origin = "country.name", destination = "continent")
+new_gapminder <- cbind(joined_data, continent)
+
+no_continent <- new_gapminder[is.na(new_gapminder$continent),]
+unique(no_continent$country)
+
+## These countries were not given values in the continent column because they no longer exist
+## or are islands such as in the examples of the Channel Islands and St. Martin, or territories of 
+## another country such as "Akrotiri and Dhekelia" which is a British Overseas Territory and considered
+## part of the continent however is not part of the continent shelf or Cocos Island which is an Australian
+## territory but is considered to be a part of Asia. Another possibility is that they were considered duplicates
+## such a in the case of "Eritrea and Ethiopia", both of which are now individual countries.
+
+new_gapminder$continent[which(new_gapminder$country == "Channel Islands")] <- "Europe"
+new_gapminder$continent[which(new_gapminder$country == "Kosovo")] <- "Europe"
+new_gapminder$continent[which(new_gapminder$country == "Serbia and Montenegro")] <- "Europe"
+new_gapminder$continent[which(new_gapminder$country == "Central African Rep.")] <- "Africa"
+new_gapminder$continent[which(new_gapminder$country == "Akrotiri and Dhekelia")] <- "Europe"
+new_gapminder$continent[which(new_gapminder$country == "Cocos Island")] <- "Asia"
+new_gapminder$continent[which(new_gapminder$country == "Czechoslovakia")] <- "Europe"
+new_gapminder$continent[which(new_gapminder$country == "East Germany")] <- "Europe"
+new_gapminder$continent[which(new_gapminder$country == "Eritrea and Ethiopia")] <- "Africa"
+new_gapminder$continent[which(new_gapminder$country == "St. Martin")] <- "Americas"
+new_gapminder$continent[which(new_gapminder$country == "North Yemen (former)")] <- "Asia"
+new_gapminder$continent[which(new_gapminder$country == "South Yemen (former)")] <- "Asia"
+new_gapminder$continent[which(new_gapminder$country == "Yugoslavia")] <- "Europe"
+
+which(is.na(new_gapminder$continent))
+
+## no missing values in the continent column.
+
+new_gapminder <- new_gapminder %>%
+  arrange(country, year)
+
+```
+
+## 4.
+```{r}
+a <- new_gapminder[,c(1,2,3,4,7,8)]
+a <- a %>% fill(population)
+plot_data <- a %>% distinct()
+
+
+
+```
+
+
+```{r}
+library(ggplot2)
+library(gganimate)
+library(gifski)
+
+plot1 <- ggplot(plot_data, aes(GDP, life_expectancy)) +
+  geom_point(alpha = 0.7, aes(size = population, colour = continent)) +
+  scale_size(range = c(2, 12)) +
+  scale_x_log10() +
+  theme(legend.position = "right") +
+  labs(title = "Year: {frame_time}", x = "GDP", y = "life expectancy") +
+  transition_time(year) +
+  ease_aes("linear")
+
+animate(plot1)
+
+```
+
+# Part 2
+
+## 1.
+```{r}
+attach(plot_data)
+plot(GDP, life_expectancy) +
+  abline(lm(life_expectancy ~ GDP))
+```
+
+## 2.
+```{r}
+reg <- lm(life_expectancy ~ GDP, data = plot_data)
+res.lm <- resid(reg)
+NoNA <- na.omit(plot_data)
+NoNA <- cbind(NoNA, res.lm)
+
+plot2 <- ggplot(NoNA, aes(GDP, res.lm)) +
+  geom_point() +
+  xlab("GDP") +
+  ylab("Residuals") +
+  facet_grid(rows = vars(continent))
+  
+plot2
+```
+
+## 3.
+```{r}
+library(broom)
+glance(reg)
+plot(reg)
+
+## The outliers are in rows 35,443 , 45,009 , and 45,012.
+
+outlier.reg <- plot_data %>%
+  slice(35443, 45009, 45012)
+
+head(outlier.reg)
+```
+The outliers in this model are Rwanda in 1994 which can be attributed to the Rwandan genocide. The other
+two outliers is the UAE in both 1977 and 1980. I could not find significant events as to why the UAE stuck
+out in the particular years.
+
+# Part 3
+
+```{r}
+library(gapminder)
+data("gapminder")
+```
+
+## a.
+```{r}
+gapminder %>%
+  mutate(year = year - mean(year)) ->
+  gapminder
+
+mean(gapminder$year)
+
+```
+
+
+## b.
+```{r}
+attach(gapminder)
+year2 <- (year)^2
+gapminder <- cbind(gapminder, year2)
+
+quad <- lm(lifeExp ~ year + year2, data = gapminder)
+quad
+summary(quad)
+
+```
+The quadratic formula is Y = 60.512 + 0.33X - 0.003X^2 with X being the year and Y being life expectancy.
+
+
+## c.
+```{r}
+glance(quad)
+plot(quad)
+
+## The outliers are in rows 222 , 1,293 , and 1,294.
+
+outlier.quad <- gapminder %>%
+  slice(222, 1293, 1294)
+
+head(outlier.quad)
+
+```
+Once again, Rwanda is an outlier, which can be attributed to the genocide. Cambodia in the year 1977 is
+an outlier in this model. Upon further research I found that there was a genocide in Cambodia in 1977, which
+could be the reason for its outlier status.
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,296 @@
+---
+title: "Tidy Text"
+author: "Bilal Gilani"
+date: "4/1/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(stringr)
+library(janeaustenr)
+library(gutenbergr)
+library(ggplot2)
+library(scales)
+```
+
+# Exercise 1
+
+```{r}
+orig_books <- austen_books() %>%
+group_by(book) %>%
+mutate(linenumber = row_number(),
+chapter = cumsum(str_detect(text,
+regex("^chapter [\\divxlc]",
+ignore_case = TRUE)))) %>%
+ungroup() %>%
+select(chapter, linenumber, everything())
+orig_books
+
+tidy_books <- orig_books %>%
+unnest_tokens(word, text) %>%
+
+mutate(word = str_extract(word, "[a-z']+")) %>%
+anti_join(stop_words)
+
+tidy_books %>%
+  count(word, sort = TRUE)
+
+```
+
+
+```{r}
+vec1 <- gutenberg_works(author == "Wells, H. G. (Herbert George)")
+hgwells_vec <- vec1$gutenberg_id
+hgwells <- gutenberg_download(hgwells_vec)
+
+```
+
+```{r}
+gutenberg_authors %>%
+  filter(gutenberg_author_id %in% c(404, 408, 405))
+  
+
+bronte2 <- gutenberg_works(gutenberg_author_id %in% c(404, 408, 405))
+bronte_vec <- bronte2$gutenberg_id
+bronte <- gutenberg_download(bronte_vec)
+
+```
+
+```{r}
+tidy_hgwells <- hgwells %>%
+unnest_tokens(word, text) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+anti_join(stop_words) %>%
+  drop_na()
+
+tidy_bronte <- bronte %>%
+unnest_tokens(word, text) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+anti_join(stop_words) %>%
+  drop_na()
+
+tidy_hgwells %>%
+count(word, sort = TRUE)
+
+tidy_bronte %>%
+count(word, sort = TRUE)
+
+
+tidy_hgwells
+tidy_bronte
+
+```
+
+```{r}
+frequency_by_word_across_authors <- bind_rows(mutate(tidy_bronte,
+author = "Bronte"),
+mutate(tidy_hgwells, author = "Wells"),
+mutate(tidy_books, author = "Austen")) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+count(author, word) %>%
+group_by(author) %>%
+mutate(proportion = n / sum(n)) %>%
+select(-n) %>%
+spread(author, proportion)
+frequency_by_word_across_authors
+```
+
+```{r}
+frequency <- frequency_by_word_across_authors %>%
+gather(author, proportion, `Bronte`:`Wells`)
+frequency
+
+frequency %>% ggplot(aes(x = proportion,
+y = `Austen`,
+color = abs(`Austen` - proportion))) +
+geom_abline(color = "gray40", lty = 2) +
+geom_jitter(alpha = 0.1, size = 2.5,
+width = 0.3, height = 0.3) +
+geom_text(aes(label = word),
+check_overlap = TRUE, vjust = 1.5) +
+scale_x_log10(labels = percent_format()) +
+scale_y_log10(labels = percent_format()) +
+scale_color_gradient(limits = c(0, 0.001),
+low = "darkslategray4",
+high = "gray75") +
+facet_wrap(~author, ncol = 2) +
+theme(legend.position="none") +
+labs(y = "Jane Austen", x = NULL)
+```
+
+
+```{r}
+df_Bronte <- frequency[frequency$author == "Bronte",]
+df_Bronte
+
+cor.test(data = df_Bronte, ~ proportion + `Austen`)
+
+```
+
+```{r}
+df_Wells <- frequency[frequency$author == "Wells",]
+df_Wells
+
+cor.test(data = df_Wells, ~ proportion + `Austen`)
+
+
+```
+
+
+# Exercise 2
+
+DICKENS
+```{r}
+gutenberg_authors %>%
+  filter(gutenberg_author_id == 37)
+  
+
+dickens2 <- gutenberg_works(gutenberg_author_id == 37)
+dickens_vec <- dickens2$gutenberg_id
+dickens <- gutenberg_download(dickens_vec)
+
+
+```
+
+TWAIN
+```{r}
+gutenberg_authors %>%
+  filter(gutenberg_author_id == 53)
+  
+
+twain2 <- gutenberg_works(gutenberg_author_id == 53)
+twain_vec <- twain2$gutenberg_id
+twain <- gutenberg_download(twain_vec)
+
+
+```
+
+VERNE
+```{r}
+gutenberg_authors %>%
+  filter(gutenberg_author_id == 60)
+  
+
+verne2 <- gutenberg_works(gutenberg_author_id == 60)
+verne_vec <- verne2$gutenberg_id
+verne <- gutenberg_download(verne_vec)
+
+
+```
+
+```{r}
+tidy_dickens <- dickens %>%
+unnest_tokens(word, text) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+anti_join(stop_words) %>%
+  drop_na()
+
+tidy_twain <- twain %>%
+unnest_tokens(word, text) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+anti_join(stop_words) %>%
+  drop_na()
+
+tidy_verne <- verne %>%
+unnest_tokens(word, text) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+anti_join(stop_words) %>%
+  drop_na()
+
+tidy_dickens %>%
+count(word, sort = TRUE)
+
+tidy_twain %>%
+count(word, sort = TRUE)
+
+tidy_verne %>%
+count(word, sort = TRUE)
+
+
+tidy_dickens
+tidy_twain
+tidy_verne
+
+```
+
+```{r}
+frequency_by_word_across_authors2 <- bind_rows(mutate(tidy_dickens,
+author = "Dickens"),
+mutate(tidy_twain, author = "Twain"),
+mutate(tidy_verne, author = "Verne")) %>%
+mutate(word = str_extract(word, "[a-z']+")) %>%
+count(author, word) %>%
+group_by(author) %>%
+mutate(proportion = n / sum(n)) %>%
+select(-n) %>%
+spread(author, proportion)
+frequency_by_word_across_authors2
+
+```
+
+```{r}
+frequency2 <- frequency_by_word_across_authors2 %>%
+gather(author, proportion, `Dickens`:`Twain`)
+frequency2
+
+frequency2 %>% ggplot(aes(x = proportion,
+y = `Verne`,
+color = abs(`Verne` - proportion))) +
+geom_abline(color = "gray40", lty = 2) +
+geom_jitter(alpha = 0.1, size = 2.5,
+width = 0.3, height = 0.3) +
+geom_text(aes(label = word),
+check_overlap = TRUE, vjust = 1.5) +
+scale_x_log10(labels = percent_format()) +
+scale_y_log10(labels = percent_format()) +
+scale_color_gradient(limits = c(0, 0.001),
+low = "darkslategray4",
+high = "gray75") +
+facet_wrap(~author, ncol = 2) +
+theme(legend.position="none") +
+labs(y = "Jules Verne", x = NULL)
+
+```
+
+```{r}
+df_Dickens <- frequency2[frequency2$author == "Dickens",]
+df_Dickens
+
+cor.test(data = df_Dickens, ~ proportion + `Verne`)
+
+
+```
+
+```{r}
+df_Twain <- frequency2[frequency2$author == "Twain",]
+df_Twain
+
+cor.test(data = df_Twain, ~ proportion + `Verne`)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
